@@ -38,6 +38,10 @@ func GetKeyWithSlot(slot string) (*Key, error) { //nolint: revive
 	return nil, errors.New("unimplemented")
 }
 
+func GetKeyWithSlotAndSelector(slot string, selector Selector) (*Key, error) { //nolint: revive
+	return nil, errors.New("unimplemented")
+}
+
 func (k *Key) Close() {}
 
 func (k *Key) Authenticate(pin string) {} //nolint: revive
