@@ -465,6 +465,9 @@ type CommonBundleOpts struct {
 // NewAttestationBundle uses signing config and trusted root to sign an attestation and create a bundle.
 func NewAttestationBundle(ctx context.Context, ko options.KeyOpts, cert, certChain string, bundleOpts CommonBundleOpts, signingConfig *root.SigningConfig, trustedMaterial root.TrustedMaterial) ([]byte, crypto.PublicKey, pb_go_v1.HashAlgorithm, error) {
 	if ko.SigningCertificateChainOnly {
+		if !ko.NewBundleFormat {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("certificate-chain-only signing requires the new bundle format")
+		}
 		if cert == "" || certChain == "" {
 			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("certificate-chain-only signing requires a certificate and certificate chain")
 		}
