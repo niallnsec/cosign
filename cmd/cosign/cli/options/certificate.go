@@ -24,6 +24,7 @@ import (
 // CertVerifyOptions is the wrapper for certificate verification.
 type CertVerifyOptions struct {
 	Cert                         string
+	CertificateChainOnly         bool
 	CertIdentity                 string
 	CertIdentityRegexp           string
 	CertOidcIssuer               string
@@ -48,6 +49,9 @@ func (o *CertVerifyOptions) AddFlags(cmd *cobra.Command) {
 		"path to the public certificate. The certificate will be verified against the Fulcio roots if the --certificate-chain option is not passed.")
 	_ = cmd.MarkFlagFilename("certificate", certificateExts...)
 	_ = cmd.Flags().MarkDeprecated("certificate", "please use --bundle with --trusted-root to provide the public certificate")
+
+	cmd.Flags().BoolVar(&o.CertificateChainOnly, "certificate-chain-only", false,
+		"trust any code-signing certificate that chains to a certificate authority in --trusted-root without requiring Fulcio identity claims")
 
 	cmd.Flags().StringVar(&o.CertIdentity, "certificate-identity", "",
 		"The identity expected in a valid Fulcio certificate. Valid values include email address, DNS names, IP addresses, and URIs. Either --certificate-identity or --certificate-identity-regexp must be set for keyless flows.")
@@ -123,6 +127,12 @@ func (o *CertVerifyOptions) AddFlags(cmd *cobra.Command) {
 }
 
 func (o *CertVerifyOptions) Identities() ([]cosign.Identity, error) {
+	if o.CertificateChainOnly {
+		if o.CertIdentity != "" || o.CertIdentityRegexp != "" || o.CertOidcIssuer != "" || o.CertOidcIssuerRegexp != "" {
+			return nil, errors.New("--certificate-chain-only cannot be combined with certificate identity or OIDC issuer constraints")
+		}
+		return nil, nil
+	}
 	if o.CertIdentity == "" && o.CertIdentityRegexp == "" {
 		return nil, errors.New("--certificate-identity or --certificate-identity-regexp is required for verification in keyless mode")
 	}

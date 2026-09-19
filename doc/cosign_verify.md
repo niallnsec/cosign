@@ -63,6 +63,7 @@ cosign verify [flags]
       --allow-http-registry                             whether to allow using HTTP protocol while connecting to registries. Don't use this for anything but testing
       --allow-insecure-registry                         whether to allow insecure connections to registries (e.g., with expired or self-signed TLS certificates). Don't use this for anything but testing
   -a, --annotations strings                             extra key=value pairs to sign
+      --certificate-chain-only                          trust any code-signing certificate that chains to a certificate authority in --trusted-root without requiring Fulcio identity claims
       --certificate-github-workflow-name string         contains the workflow claim from the GitHub OIDC Identity token that contains the name of the executed workflow.
       --certificate-github-workflow-ref string          contains the ref claim from the GitHub OIDC Identity token that contains the git ref that the workflow run was based upon.
       --certificate-github-workflow-repository string   contains the repository claim from the GitHub OIDC Identity token that contains the repository that the workflow run was based upon

@@ -140,6 +140,19 @@ func TestVerifyBundle(t *testing.T) {
 			wantErr:              false,
 		},
 		{
+			name: "valid certificate chain without Fulcio identity",
+			checkOpts: &CheckOpts{
+				CertificateChainOnly: true,
+				IgnoreSCT:            true,
+				IgnoreTlog:           true,
+				UseSignedTimestamps:  true,
+				TrustedMaterial:      virtualSigstore,
+			},
+			artifactPolicyOption: verify.WithArtifact(bytes.NewReader(artifact)),
+			entity:               attestation,
+			wantErr:              false,
+		},
+		{
 			name: "invalid, wrong artifact",
 			checkOpts: &CheckOpts{
 				Identities:          standardIdentities,

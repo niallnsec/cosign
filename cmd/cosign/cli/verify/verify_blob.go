@@ -88,6 +88,14 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 	if options.NOf(c.KeyRef, c.CertIdentity, c.CertIdentityRegexp) > 1 {
 		return &options.KeyAndIdentityParseError{}
 	}
+	if c.CertificateChainOnly {
+		if c.KeyRef != "" || c.Sk || c.CertRef != "" {
+			return errors.New("--certificate-chain-only verifies the certificate embedded in the bundle and cannot be combined with --key, --sk, or --certificate")
+		}
+		if c.TrustedRootPath == "" {
+			return errors.New("--certificate-chain-only requires --trusted-root")
+		}
+	}
 
 	// Key, sk, and cert are mutually exclusive.
 	if options.NOf(c.KeyRef, c.Sk, c.CertRef) > 1 {
@@ -115,6 +123,7 @@ func (c *VerifyBlobCmd) Exec(ctx context.Context, blobRef string) error {
 		IgnoreTlog:                   c.IgnoreTlog,
 		UseSignedTimestamps:          c.TSACertChainPath != "" || c.UseSignedTimestamps,
 		AllowCertificateChain:        c.AllowCertificateChain,
+		CertificateChainOnly:         c.CertificateChainOnly,
 	}
 	co.NewBundleFormat = c.KeyOpts.NewBundleFormat && checkNewBundle(c.BundlePath, co.BundleOptions()...)
 	vOfflineKey := verifyOfflineWithKey(c.KeyRef, c.CertRef, c.Sk, co)

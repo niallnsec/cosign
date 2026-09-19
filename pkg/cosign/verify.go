@@ -181,6 +181,11 @@ type CheckOpts struct {
 	// AllowCertificateChain permits bundles with version >= v0.3 to contain
 	// X.509 certificate chains in the verification material.
 	AllowCertificateChain bool
+
+	// CertificateChainOnly permits certificate verification against the
+	// configured certificate authorities without requiring Fulcio identity
+	// claims. Callers must provide a deliberately scoped trusted root.
+	CertificateChainOnly bool
 }
 
 // BundleOptions returns sigstore-go bundle options based on CheckOpts.
@@ -211,6 +216,12 @@ func (co *CheckOpts) verificationOptions() (trustedMaterial root.TrustedMaterial
 	}
 
 	policyOptions = make([]verify.PolicyOption, 0)
+	if co.CertificateChainOnly {
+		if len(co.Identities) > 0 {
+			return nil, nil, nil, fmt.Errorf("certificate-chain-only verification cannot include certificate identities")
+		}
+		policyOptions = append(policyOptions, verify.WithoutIdentitiesUnsafe())
+	}
 
 	if len(co.Identities) > 0 {
 		var sanMatcher verify.SubjectAlternativeNameMatcher

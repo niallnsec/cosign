@@ -84,6 +84,14 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 	if options.NOf(c.KeyRef, c.CertIdentity, c.CertIdentityRegexp) > 1 {
 		return &options.KeyAndIdentityParseError{}
 	}
+	if c.CertificateChainOnly {
+		if c.KeyRef != "" || c.Sk || c.CertRef != "" {
+			return errors.New("--certificate-chain-only verifies the certificate embedded in the bundle and cannot be combined with --key, --sk, or --certificate")
+		}
+		if c.TrustedRootPath == "" {
+			return errors.New("--certificate-chain-only requires --trusted-root")
+		}
+	}
 
 	// always default to sha256 if the algorithm hasn't been explicitly set
 	if c.HashAlgorithm == 0 {
@@ -129,6 +137,7 @@ func (c *VerifyAttestationCommand) Exec(ctx context.Context, images []string) (e
 		UseSignedTimestamps:          c.TSACertChainPath != "" || c.UseSignedTimestamps,
 		NewBundleFormat:              c.NewBundleFormat,
 		AllowCertificateChain:        c.AllowCertificateChain,
+		CertificateChainOnly:         c.CertificateChainOnly,
 	}
 	vOfflineKey := verifyOfflineWithKey(c.KeyRef, c.CertRef, c.Sk, co)
 

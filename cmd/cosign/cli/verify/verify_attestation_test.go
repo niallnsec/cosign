@@ -55,6 +55,20 @@ func TestVerifyAttestationMissingIssuer(t *testing.T) {
 	}
 }
 
+func TestVerifyAttestationCertificateChainOnlyRequiresTrustedRoot(t *testing.T) {
+	ctx := context.Background()
+	verifyAttestation := VerifyAttestationCommand{
+		CertVerifyOptions: options.CertVerifyOptions{
+			CertificateChainOnly: true,
+		},
+	}
+
+	err := verifyAttestation.Exec(ctx, []string{"example.com/image"})
+	if err == nil || !strings.Contains(err.Error(), "requires --trusted-root") {
+		t.Fatalf("expected trusted root error, got: %v", err)
+	}
+}
+
 func TestVerifyAttestationMutuallyExclusiveFlags(t *testing.T) {
 	ctx := context.Background()
 	tts := []struct {

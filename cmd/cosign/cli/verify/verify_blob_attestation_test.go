@@ -595,6 +595,23 @@ func TestVerifyBlobAttestationSkWithoutIdentities(t *testing.T) {
 	}
 }
 
+func TestVerifyBlobAttestationCertificateChainOnlyRequiresTrustedRoot(t *testing.T) {
+	ctx := context.Background()
+	verifyBlobAttestation := VerifyBlobAttestationCommand{
+		KeyOpts: options.KeyOpts{
+			BundlePath: "bundle.sigstore.json",
+		},
+		CertVerifyOptions: options.CertVerifyOptions{
+			CertificateChainOnly: true,
+		},
+	}
+
+	err := verifyBlobAttestation.Exec(ctx, "blob")
+	if err == nil || !strings.Contains(err.Error(), "requires --trusted-root") {
+		t.Fatalf("expected trusted root error, got: %v", err)
+	}
+}
+
 func TestVerifyBlobAttestationLegacyBundlePublicKey(t *testing.T) {
 	ctx := context.Background()
 	td := t.TempDir()

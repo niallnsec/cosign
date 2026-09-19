@@ -699,6 +699,23 @@ func TestVerifyBlobCertMissingSubject(t *testing.T) {
 	}
 }
 
+func TestVerifyBlobCertificateChainOnlyRequiresTrustedRoot(t *testing.T) {
+	ctx := context.Background()
+	verifyBlob := VerifyBlobCmd{
+		KeyOpts: options.KeyOpts{
+			BundlePath: "bundle.sigstore.json",
+		},
+		CertVerifyOptions: options.CertVerifyOptions{
+			CertificateChainOnly: true,
+		},
+	}
+
+	err := verifyBlob.Exec(ctx, "blob")
+	if err == nil || !strings.Contains(err.Error(), "requires --trusted-root") {
+		t.Fatalf("expected trusted root error, got: %v", err)
+	}
+}
+
 func TestVerifyBlobMutuallyExclusiveFlags(t *testing.T) {
 	ctx := context.Background()
 	tts := []struct {

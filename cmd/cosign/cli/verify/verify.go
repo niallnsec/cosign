@@ -19,6 +19,7 @@ import (
 	"context"
 	"crypto"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -107,6 +108,14 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 	if options.NOf(c.KeyRef, c.CertIdentity, c.CertIdentityRegexp) > 1 {
 		return &options.KeyAndIdentityParseError{}
 	}
+	if c.CertificateChainOnly {
+		if c.KeyRef != "" || c.Sk || c.CertRef != "" {
+			return errors.New("--certificate-chain-only verifies the certificate embedded in the bundle and cannot be combined with --key, --sk, or --certificate")
+		}
+		if c.TrustedRootPath == "" {
+			return errors.New("--certificate-chain-only requires --trusted-root")
+		}
+	}
 
 	var identities []cosign.Identity
 	if c.KeyRef == "" && !c.Sk {
@@ -146,6 +155,7 @@ func (c *VerifyCommand) Exec(ctx context.Context, images []string) (err error) {
 		UseSignedTimestamps:          c.TSACertChainPath != "" || c.UseSignedTimestamps,
 		NewBundleFormat:              c.NewBundleFormat,
 		AllowCertificateChain:        c.AllowCertificateChain,
+		CertificateChainOnly:         c.CertificateChainOnly,
 	}
 	vOfflineKey := verifyOfflineWithKey(c.KeyRef, c.CertRef, c.Sk, co)
 

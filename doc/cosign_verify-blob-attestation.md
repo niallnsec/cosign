@@ -45,6 +45,7 @@ cosign verify-blob-attestation [flags]
 ```
       --allow-certificate-chain                         allow X.509 certificate chains in bundle verification material for v0.3+ bundles
       --bundle string                                   path to bundle FILE
+      --certificate-chain-only                          trust any code-signing certificate that chains to a certificate authority in --trusted-root without requiring Fulcio identity claims
       --certificate-github-workflow-name string         contains the workflow claim from the GitHub OIDC Identity token that contains the name of the executed workflow.
       --certificate-github-workflow-ref string          contains the ref claim from the GitHub OIDC Identity token that contains the git ref that the workflow run was based upon.
       --certificate-github-workflow-repository string   contains the repository claim from the GitHub OIDC Identity token that contains the repository that the workflow run was based upon

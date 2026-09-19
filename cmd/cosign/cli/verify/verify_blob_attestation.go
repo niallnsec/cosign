@@ -100,6 +100,14 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 	if options.NOf(c.KeyRef, c.CertIdentity, c.CertIdentityRegexp) > 1 {
 		return &options.KeyAndIdentityParseError{}
 	}
+	if c.CertificateChainOnly {
+		if c.KeyRef != "" || c.Sk || c.CertRef != "" {
+			return errors.New("--certificate-chain-only verifies the certificate embedded in the bundle and cannot be combined with --key, --sk, or --certificate")
+		}
+		if c.TrustedRootPath == "" {
+			return errors.New("--certificate-chain-only requires --trusted-root")
+		}
+	}
 
 	// We can't have both a key and a security key
 	if options.NOf(c.KeyRef, c.Sk) > 1 {
@@ -126,6 +134,7 @@ func (c *VerifyBlobAttestationCommand) Exec(ctx context.Context, artifactPath st
 		IgnoreTlog:                   c.IgnoreTlog,
 		UseSignedTimestamps:          c.TSACertChainPath != "" || c.UseSignedTimestamps,
 		AllowCertificateChain:        c.AllowCertificateChain,
+		CertificateChainOnly:         c.CertificateChainOnly,
 	}
 	co.NewBundleFormat = c.NewBundleFormat && checkNewBundle(c.BundlePath, co.BundleOptions()...)
 	vOfflineKey := verifyOfflineWithKey(c.KeyRef, c.CertRef, c.Sk, co)
