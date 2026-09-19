@@ -165,7 +165,7 @@ func signerFromKeyOpts(ctx context.Context, certPath string, certChainPath strin
 	genKey := false
 	switch {
 	case ko.Sk:
-		sv, err = signerFromSecurityKey(ctx, ko.Slot, pivkey.Selector{
+		sv, err = signerFromSecurityKey(ctx, certPath, certChainPath, ko.Slot, pivkey.Selector{
 			Serial:    ko.PIVSerial,
 			KeySHA256: ko.PIVKeySHA256,
 		})
@@ -184,7 +184,7 @@ func signerFromKeyOpts(ctx context.Context, certPath string, certChainPath strin
 	return sv, genKey, nil
 }
 
-func signerFromSecurityKey(ctx context.Context, keySlot string, selector pivkey.Selector) (*SignerVerifier, error) {
+func signerFromSecurityKey(ctx context.Context, certPath, certChainPath, keySlot string, selector pivkey.Selector) (*SignerVerifier, error) {
 	sk, err := pivkey.GetKeyWithSlotAndSelector(keySlot, selector)
 	if err != nil {
 		return nil, err
@@ -201,10 +201,12 @@ func signerFromSecurityKey(ctx context.Context, keySlot string, selector pivkey.
 	// token as the private key. If it's not there, show a warning to the
 	// user.
 	certFromPIV, err := sk.Certificate()
+	var leafCert *x509.Certificate
 	var pemBytes []byte
 	if err != nil {
 		ui.Warnf(ctx, "no x509 certificate retrieved from the PIV token")
 	} else {
+		leafCert = certFromPIV
 		pemBytes, err = cryptoutils.MarshalCertificateToPEM(certFromPIV)
 		if err != nil {
 			sk.Close()
@@ -212,11 +214,90 @@ func signerFromSecurityKey(ctx context.Context, keySlot string, selector pivkey.
 		}
 	}
 
-	return &SignerVerifier{
+	certSigner := &SignerVerifier{
 		Cert:           pemBytes,
 		SignerVerifier: sv,
 		close:          sk.Close,
-	}, nil
+	}
+
+	// Allow a caller-provided certificate to override the certificate stored on
+	// the PIV token. This mirrors key-reference signing and, critically, still
+	// requires the certificate public key to match the hardware-backed key.
+	if certPath != "" {
+		certBytes, err := os.ReadFile(certPath)
+		if err != nil {
+			sk.Close()
+			return nil, fmt.Errorf("read certificate: %w", err)
+		}
+		if bytes.HasPrefix(certBytes, []byte("-----")) {
+			decoded, _ := pem.Decode(certBytes)
+			if decoded == nil || decoded.Type != "CERTIFICATE" {
+				sk.Close()
+				return nil, fmt.Errorf("supplied PEM file is not a certificate: %s", certPath)
+			}
+			certBytes = decoded.Bytes
+		}
+		parsedCert, err := x509.ParseCertificate(certBytes)
+		if err != nil {
+			sk.Close()
+			return nil, fmt.Errorf("parse x509 certificate: %w", err)
+		}
+		publicKey, err := sv.PublicKey()
+		if err != nil {
+			sk.Close()
+			return nil, fmt.Errorf("get public key: %w", err)
+		}
+		if cryptoutils.EqualKeys(publicKey, parsedCert.PublicKey) != nil {
+			sk.Close()
+			return nil, errors.New("public key in certificate does not match the PIV key")
+		}
+		pemBytes, err = cryptoutils.MarshalCertificateToPEM(parsedCert)
+		if err != nil {
+			sk.Close()
+			return nil, fmt.Errorf("marshaling certificate to PEM: %w", err)
+		}
+		if certSigner.Cert != nil {
+			ui.Warnf(ctx, "overriding x509 certificate retrieved from the PIV token")
+		}
+		leafCert = parsedCert
+		certSigner.Cert = pemBytes
+	}
+
+	if certChainPath == "" {
+		return certSigner, nil
+	}
+	if certSigner.Cert == nil {
+		sk.Close()
+		return nil, errors.New("no leaf certificate found or provided while specifying chain")
+	}
+
+	certChainBytes, err := os.ReadFile(certChainPath)
+	if err != nil {
+		sk.Close()
+		return nil, fmt.Errorf("reading certificate chain from path: %w", err)
+	}
+	certChain, err := cryptoutils.LoadCertificatesFromPEM(bytes.NewReader(certChainBytes))
+	if err != nil {
+		sk.Close()
+		return nil, fmt.Errorf("loading certificate chain: %w", err)
+	}
+	if len(certChain) == 0 {
+		sk.Close()
+		return nil, errors.New("no certificates in certificate chain")
+	}
+	rootPool := x509.NewCertPool()
+	rootPool.AddCert(certChain[len(certChain)-1])
+	subPool := x509.NewCertPool()
+	for _, certificate := range certChain[:len(certChain)-1] {
+		subPool.AddCert(certificate)
+	}
+	if _, err := cosign.TrustedCert(leafCert, rootPool, subPool); err != nil {
+		sk.Close()
+		return nil, fmt.Errorf("unable to validate certificate chain: %w", err)
+	}
+	certSigner.Chain = certChainBytes
+
+	return certSigner, nil
 }
 
 type securityKeyAuthenticator interface {
