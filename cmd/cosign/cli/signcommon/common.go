@@ -189,6 +189,7 @@ func signerFromSecurityKey(ctx context.Context, keySlot string, selector pivkey.
 	if err != nil {
 		return nil, err
 	}
+	authenticateSecurityKeyFromEnvironment(sk)
 	sv, err := sk.SignerVerifier()
 	if err != nil {
 		sk.Close()
@@ -216,6 +217,16 @@ func signerFromSecurityKey(ctx context.Context, keySlot string, selector pivkey.
 		SignerVerifier: sv,
 		close:          sk.Close,
 	}, nil
+}
+
+type securityKeyAuthenticator interface {
+	Authenticate(pin string)
+}
+
+func authenticateSecurityKeyFromEnvironment(sk securityKeyAuthenticator) {
+	if pin := env.Getenv(env.VariablePIVPin); pin != "" {
+		sk.Authenticate(pin)
+	}
 }
 
 func signerFromKeyRef(ctx context.Context, certPath, certChainPath, keyRef string, passFunc cosign.PassFunc, defaultLoadOptions *[]signature.LoadOption) (*SignerVerifier, error) {

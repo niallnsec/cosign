@@ -47,6 +47,7 @@ const (
 	VariableExperimental            Variable = "COSIGN_EXPERIMENTAL"
 	VariableDockerMediaTypes        Variable = "COSIGN_DOCKER_MEDIA_TYPES"
 	VariablePassword                Variable = "COSIGN_PASSWORD"
+	VariablePIVPin                  Variable = "COSIGN_PIV_PIN"
 	VariablePKCS11Pin               Variable = "COSIGN_PKCS11_PIN"
 	VariablePKCS11ModulePath        Variable = "COSIGN_PKCS11_MODULE_PATH"
 	VariablePKCS11IgnoreCertificate Variable = "COSIGN_PKCS11_IGNORE_CERTIFICATE"
@@ -98,6 +99,11 @@ var (
 		VariablePassword: {
 			Description: "overrides password inputs with this value",
 			Expects:     "string with a password (asks on stdin by default)",
+			Sensitive:   true,
+		},
+		VariablePIVPin: {
+			Description: "provides the PIN for PIV security-key signing",
+			Expects:     "string with a PIN (asks on stdin by default)",
 			Sensitive:   true,
 		},
 		VariablePKCS11Pin: {

@@ -29,6 +29,7 @@ import (
 	"github.com/sigstore/cosign/v3/internal/test"
 	"github.com/sigstore/cosign/v3/internal/ui"
 	"github.com/sigstore/cosign/v3/pkg/cosign"
+	"github.com/sigstore/cosign/v3/pkg/cosign/env"
 	pb_go_v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +39,40 @@ func pass(s string) cosign.PassFunc {
 	return func(_ bool) ([]byte, error) {
 		return []byte(s), nil
 	}
+}
+
+type testSecurityKeyAuthenticator struct {
+	pin   string
+	calls int
+}
+
+func (a *testSecurityKeyAuthenticator) Authenticate(pin string) {
+	a.pin = pin
+	a.calls++
+}
+
+func TestAuthenticateSecurityKeyFromEnvironment(t *testing.T) {
+	t.Run("configured PIN", func(t *testing.T) {
+		t.Setenv(env.VariablePIVPin.String(), "123456")
+		authenticator := &testSecurityKeyAuthenticator{}
+
+		authenticateSecurityKeyFromEnvironment(authenticator)
+
+		if authenticator.pin != "123456" || authenticator.calls != 1 {
+			t.Fatalf("Authenticate() pin = %q, calls = %d; want configured PIN and one call", authenticator.pin, authenticator.calls)
+		}
+	})
+
+	t.Run("empty PIN retains interactive fallback", func(t *testing.T) {
+		t.Setenv(env.VariablePIVPin.String(), "")
+		authenticator := &testSecurityKeyAuthenticator{}
+
+		authenticateSecurityKeyFromEnvironment(authenticator)
+
+		if authenticator.calls != 0 {
+			t.Fatalf("Authenticate() calls = %d, want no calls", authenticator.calls)
+		}
+	})
 }
 
 func generateCertificateFiles(t *testing.T, tmpDir string, pf cosign.PassFunc) (privFile, certFile, chainFile string, privKey *ecdsa.PrivateKey, cert *x509.Certificate, chain []*x509.Certificate) {
