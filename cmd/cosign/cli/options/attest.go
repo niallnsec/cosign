@@ -43,6 +43,7 @@ type AttestOptions struct {
 	UseSigningConfig        bool
 	SigningConfigPath       string
 	TrustedRootPath         string
+	CertificateChainOnly    bool
 
 	Rekor       RekorOptions
 	Fulcio      FulcioOptions
@@ -139,4 +140,7 @@ func (o *AttestOptions) AddFlags(cmd *cobra.Command) {
 
 	cmd.Flags().StringVar(&o.TrustedRootPath, "trusted-root", "",
 		"optional path to a TrustedRoot JSON file to verify a signature after signing")
+
+	cmd.Flags().BoolVar(&o.CertificateChainOnly, "certificate-chain-only", false,
+		"verify the code-signing certificate against --trusted-root after signing without requiring Fulcio identity claims")
 }

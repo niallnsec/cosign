@@ -79,4 +79,8 @@ type KeyOpts struct {
 	// SigningAlgorithm is the AlgorithmDetails string representation used to
 	// sign/hash the payload.
 	SigningAlgorithm string
+
+	// SigningCertificateChainOnly verifies a private-PKI code-signing certificate
+	// against TrustedMaterial without requiring Fulcio identity claims.
+	SigningCertificateChainOnly bool
 }

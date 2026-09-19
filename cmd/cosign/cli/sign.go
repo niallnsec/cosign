@@ -91,6 +91,17 @@ race conditions or (worse) malicious tampering.
 			if o.NewBundleFormat && !o.Upload && o.BundlePath == "" {
 				return fmt.Errorf("must enable upload to the OCI registry or specify a local --bundle path with --new-bundle-format")
 			}
+			if o.CertificateChainOnly {
+				if !o.NewBundleFormat {
+					return fmt.Errorf("--certificate-chain-only requires --new-bundle-format")
+				}
+				if o.Cert == "" || o.CertChain == "" {
+					return fmt.Errorf("--certificate-chain-only requires --certificate and --certificate-chain")
+				}
+				if o.TrustedRootPath == "" {
+					return fmt.Errorf("--certificate-chain-only requires --trusted-root")
+				}
+			}
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -133,6 +144,7 @@ race conditions or (worse) malicious tampering.
 				TSAServerURL:                   o.TSAServerURL,
 				IssueCertificateForExistingKey: o.IssueCertificate,
 				NewBundleFormat:                o.NewBundleFormat,
+				SigningCertificateChainOnly:    o.CertificateChainOnly,
 			}
 			if err := signcommon.LoadTrustedMaterialAndSigningConfig(cmd.Context(), &ko, o.UseSigningConfig, o.SigningConfigPath,
 				o.Rekor.URL, o.Fulcio.URL, o.OIDC.Issuer, o.TSAServerURL, o.TrustedRootPath, o.TlogUpload,

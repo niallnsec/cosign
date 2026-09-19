@@ -36,12 +36,16 @@ import (
 type SignOptions struct {
 	TSAClientTransport  http.RoundTripper
 	CertificateProvider sign.CertificateProvider
+	// CertificateChainOnly defers sigstore-go's post-sign verification so the
+	// caller can apply Cosign's private-PKI chain-only policy. The caller must
+	// verify the completed bundle before publishing it.
+	CertificateChainOnly bool
 }
 
 func SignData(ctx context.Context, content sign.Content, keypair sign.Keypair, idToken string, cert []byte, certChain []byte, signingConfig *root.SigningConfig, trustedMaterial root.TrustedMaterial, opts SignOptions) ([]byte, error) {
 	var bundleOpts sign.BundleOptions
 
-	if trustedMaterial != nil {
+	if trustedMaterial != nil && !opts.CertificateChainOnly {
 		bundleOpts.TrustedRoot = trustedMaterial
 	}
 

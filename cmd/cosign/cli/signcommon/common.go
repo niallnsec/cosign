@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"net/http"
 	"time"
@@ -50,10 +51,13 @@ import (
 	pb_go_v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
 	protorekor "github.com/sigstore/protobuf-specs/gen/pb-go/rekor/v1"
 	prototrustroot "github.com/sigstore/protobuf-specs/gen/pb-go/trustroot/v1"
+	sgbundle "github.com/sigstore/sigstore-go/pkg/bundle"
 	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/sign"
+	"github.com/sigstore/sigstore-go/pkg/verify"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 // SignerVerifier contains keys or certs to sign and verify.
@@ -460,6 +464,18 @@ type CommonBundleOpts struct {
 
 // NewAttestationBundle uses signing config and trusted root to sign an attestation and create a bundle.
 func NewAttestationBundle(ctx context.Context, ko options.KeyOpts, cert, certChain string, bundleOpts CommonBundleOpts, signingConfig *root.SigningConfig, trustedMaterial root.TrustedMaterial) ([]byte, crypto.PublicKey, pb_go_v1.HashAlgorithm, error) {
+	if ko.SigningCertificateChainOnly {
+		if cert == "" || certChain == "" {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("certificate-chain-only signing requires a certificate and certificate chain")
+		}
+		if trustedMaterial == nil {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("certificate-chain-only signing requires trusted material")
+		}
+		if signingConfig == nil || len(signingConfig.TimestampAuthorityURLs()) == 0 {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("certificate-chain-only signing requires a timestamp authority in the signing config")
+		}
+	}
+
 	keypair, certBytes, chainBytes, idToken, err := GetKeypairAndToken(ctx, ko, cert, certChain)
 	if err != nil {
 		return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("getting keypair and token: %w", err)
@@ -480,11 +496,47 @@ func NewAttestationBundle(ctx context.Context, ko options.KeyOpts, cert, certCha
 			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("getting TSA client transport: %w", err)
 		}
 	}
-	signOpts := cbundle.SignOptions{TSAClientTransport: tsaClientTransport}
+	signOpts := cbundle.SignOptions{
+		TSAClientTransport:   tsaClientTransport,
+		CertificateChainOnly: ko.SigningCertificateChainOnly,
+	}
 
 	bundle, err := cbundle.SignData(ctx, content, keypair, idToken, certBytes, chainBytes, signingConfig, trustedMaterial, signOpts)
 	if err != nil {
 		return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("signing bundle: %w", err)
+	}
+	if ko.SigningCertificateChainOnly {
+		var pb protobundle.Bundle
+		if err := protojson.Unmarshal(bundle, &pb); err != nil {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("unmarshalling bundle for certificate-chain-only verification: %w", err)
+		}
+		entity, err := sgbundle.NewBundle(&pb, sgbundle.AllowCertificateChain())
+		if err != nil {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("loading bundle for certificate-chain-only verification: %w", err)
+		}
+		checkOpts := &cosign.CheckOpts{
+			TrustedMaterial:       trustedMaterial,
+			IgnoreSCT:             true,
+			IgnoreTlog:            len(signingConfig.RekorLogURLs()) == 0,
+			UseSignedTimestamps:   true,
+			AllowCertificateChain: true,
+			CertificateChainOnly:  true,
+		}
+		artifactPolicy := verify.ArtifactPolicyOption(verify.WithoutArtifactUnsafe())
+		if digest := bundleOpts.Digest.DigestStr(); digest != "" {
+			algorithm, encodedDigest, ok := strings.Cut(digest, ":")
+			if !ok {
+				return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("parsing artifact digest %q", digest)
+			}
+			digestBytes, err := hex.DecodeString(encodedDigest)
+			if err != nil {
+				return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("decoding artifact digest %q: %w", digest, err)
+			}
+			artifactPolicy = verify.WithArtifactDigest(algorithm, digestBytes)
+		}
+		if _, err := cosign.VerifyNewBundle(ctx, checkOpts, artifactPolicy, entity); err != nil {
+			return nil, nil, pb_go_v1.HashAlgorithm_HASH_ALGORITHM_UNSPECIFIED, fmt.Errorf("verifying certificate chain and timestamp before upload: %w", err)
+		}
 	}
 
 	return bundle, keypair.GetPublicKey(), keypair.GetHashAlgorithm(), nil

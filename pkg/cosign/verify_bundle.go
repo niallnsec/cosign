@@ -17,9 +17,53 @@ package cosign
 
 import (
 	"context"
+	"crypto/x509"
+	"fmt"
+	"net/url"
 
+	"github.com/sigstore/sigstore-go/pkg/root"
 	"github.com/sigstore/sigstore-go/pkg/verify"
 )
+
+// certificateChainOnlyEntity keeps sigstore-go's full timestamp, certificate
+// path, and signature verification while supplying a synthetic SAN solely for
+// its result summarizer. Private-PKI code-signing certificates are not required
+// to carry Fulcio identity claims, and the chain-only policy below never uses
+// this value as an identity.
+type certificateChainOnlyEntity struct {
+	verify.SignedEntity
+}
+
+type certificateChainOnlyVerificationContent struct {
+	verify.VerificationContent
+	certificate *x509.Certificate
+}
+
+func (e *certificateChainOnlyEntity) VerificationContent() (verify.VerificationContent, error) {
+	content, err := e.SignedEntity.VerificationContent()
+	if err != nil {
+		return nil, err
+	}
+	cert := content.Certificate()
+	if cert == nil {
+		return nil, fmt.Errorf("certificate-chain-only verification requires an X.509 certificate")
+	}
+
+	certCopy := *cert
+	certCopy.URIs = []*url.URL{{Scheme: "urn", Opaque: "cosign:certificate-chain-only"}}
+	return &certificateChainOnlyVerificationContent{
+		VerificationContent: content,
+		certificate:         &certCopy,
+	}, nil
+}
+
+func (c *certificateChainOnlyVerificationContent) Certificate() *x509.Certificate {
+	return c.certificate
+}
+
+func (c *certificateChainOnlyVerificationContent) CompareKey(key any, trustedMaterial root.TrustedMaterial) bool {
+	return c.VerificationContent.CompareKey(key, trustedMaterial)
+}
 
 // VerifyNewBundle verifies a Sigstore bundle with the given parameters
 func VerifyNewBundle(_ context.Context, co *CheckOpts, artifactPolicyOption verify.ArtifactPolicyOption, bundle verify.SignedEntity) (*verify.VerificationResult, error) {
@@ -30,6 +74,9 @@ func VerifyNewBundle(_ context.Context, co *CheckOpts, artifactPolicyOption veri
 	coCopy := *co
 	if err := rekorV2Bundle(bundle, &coCopy); err != nil {
 		return nil, err
+	}
+	if coCopy.CertificateChainOnly {
+		bundle = &certificateChainOnlyEntity{SignedEntity: bundle}
 	}
 	trustedMaterial, verifierOptions, policyOptions, err := coCopy.verificationOptions()
 	if err != nil {

@@ -23,6 +23,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -46,6 +47,34 @@ type bundleMutator struct {
 	eraseTSA  bool
 	eraseTlog bool
 	eraseSET  bool
+}
+
+type noSANEntity struct {
+	verify.SignedEntity
+}
+
+type noSANVerificationContent struct {
+	verify.VerificationContent
+	certificate *x509.Certificate
+}
+
+func (e *noSANEntity) VerificationContent() (verify.VerificationContent, error) {
+	content, err := e.SignedEntity.VerificationContent()
+	if err != nil {
+		return nil, err
+	}
+	cert := content.Certificate()
+	certCopy := *cert
+	certCopy.URIs = nil
+	certCopy.EmailAddresses = nil
+	return &noSANVerificationContent{
+		VerificationContent: content,
+		certificate:         &certCopy,
+	}, nil
+}
+
+func (c *noSANVerificationContent) Certificate() *x509.Certificate {
+	return c.certificate
 }
 
 func (b *bundleMutator) Timestamps() ([][]byte, error) {
@@ -150,6 +179,19 @@ func TestVerifyBundle(t *testing.T) {
 			},
 			artifactPolicyOption: verify.WithArtifact(bytes.NewReader(artifact)),
 			entity:               attestation,
+			wantErr:              false,
+		},
+		{
+			name: "valid certificate chain with no subject alternative name",
+			checkOpts: &CheckOpts{
+				CertificateChainOnly: true,
+				IgnoreSCT:            true,
+				IgnoreTlog:           true,
+				UseSignedTimestamps:  true,
+				TrustedMaterial:      virtualSigstore,
+			},
+			artifactPolicyOption: verify.WithArtifact(bytes.NewReader(artifact)),
+			entity:               &noSANEntity{SignedEntity: blobSig},
 			wantErr:              false,
 		},
 		{

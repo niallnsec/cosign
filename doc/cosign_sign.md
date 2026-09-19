@@ -75,6 +75,7 @@ cosign sign [flags]
       --bundle string                                   write everything required to verify the image to FILE
       --certificate string                              path to the X.509 certificate in PEM format to include in the OCI Signature
       --certificate-chain string                        path to a list of CA X.509 certificates in PEM format which will be needed when building the certificate chain for the signing certificate. Must start with the parent intermediate CA certificate of the signing certificate and end with the root certificate. Included in the OCI Signature
+      --certificate-chain-only                          verify the code-signing certificate against --trusted-root after signing without requiring Fulcio identity claims
       --fulcio-auth-flow string                         fulcio interactive oauth2 flow to use for certificate from fulcio. Defaults to determining the flow based on the runtime environment. (options) normal|device|token|client_credentials
   -h, --help                                            help for sign
       --identity-token string                           identity token to use for certificate from fulcio. the token or a path to a file containing the token is accepted.
