@@ -26,7 +26,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const ignoreTLogMessage = "Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the %s."
+const ignoreTLogMessage = "Transparency log verification is disabled for this %s; no Rekor transparency or auditability check will be performed."
+
+const ignoreTLogWithTimestampMessage = "Transparency log verification is disabled for this %s. A trusted RFC 3161 timestamp is required to establish signing time, but it does not provide Rekor transparency or auditability."
+
+func warnIfIgnoringTlog(ctx context.Context, artifactType string, useSignedTimestamps bool) {
+	if useSignedTimestamps {
+		ui.Warnf(ctx, ignoreTLogWithTimestampMessage, artifactType)
+		return
+	}
+	ui.Warnf(ctx, ignoreTLogMessage, artifactType)
+}
 
 func Verify() *cobra.Command {
 	o := &options.VerifyOptions{}
@@ -145,7 +155,7 @@ against the transparency log.`,
 			defer cancel()
 
 			if o.CommonVerifyOptions.IgnoreTlog && !o.CommonVerifyOptions.PrivateInfrastructure {
-				ui.Warnf(ctx, ignoreTLogMessage, "signature")
+				warnIfIgnoringTlog(ctx, "signature", o.CommonVerifyOptions.UseSignedTimestamps)
 			}
 
 			return v.Exec(ctx, args)
@@ -257,7 +267,7 @@ against the transparency log.`,
 			defer cancel()
 
 			if o.CommonVerifyOptions.IgnoreTlog && !o.CommonVerifyOptions.PrivateInfrastructure {
-				ui.Warnf(ctx, ignoreTLogMessage, "attestation")
+				warnIfIgnoringTlog(ctx, "attestation", o.CommonVerifyOptions.UseSignedTimestamps)
 			}
 
 			return v.Exec(ctx, args)
@@ -362,7 +372,7 @@ The blob may be specified as a path to a file or - for stdin.`,
 			defer cancel()
 
 			if o.CommonVerifyOptions.IgnoreTlog && !o.CommonVerifyOptions.PrivateInfrastructure {
-				ui.Warnf(ctx, ignoreTLogMessage, "blob")
+				warnIfIgnoringTlog(ctx, "blob", o.CommonVerifyOptions.UseSignedTimestamps)
 			}
 
 			return verifyBlobCmd.Exec(ctx, args[0])
@@ -469,7 +479,7 @@ The blob may be specified as a path to a file.`,
 			defer cancel()
 
 			if o.CommonVerifyOptions.IgnoreTlog && !o.CommonVerifyOptions.PrivateInfrastructure {
-				ui.Warnf(ctx, ignoreTLogMessage, "blob attestation")
+				warnIfIgnoringTlog(ctx, "blob attestation", o.CommonVerifyOptions.UseSignedTimestamps)
 			}
 
 			return v.Exec(ctx, path)

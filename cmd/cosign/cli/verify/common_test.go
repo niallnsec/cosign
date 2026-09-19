@@ -70,6 +70,47 @@ func TestSetTrustedMaterialLegacyTUFFallback(t *testing.T) {
 	}
 }
 
+func TestPrintVerificationHeaderPrivatePKITimestamp(t *testing.T) {
+	co := &cosign.CheckOpts{
+		CertificateChainOnly: true,
+		IgnoreTlog:           true,
+		UseSignedTimestamps:  true,
+	}
+
+	stderr := ui.RunWithTestCtx(func(ctx context.Context, _ ui.WriteFunc) {
+		PrintVerificationHeader(ctx, "registry.example/image@sha256:digest", co, true, true)
+	})
+
+	for _, expected := range []string{
+		"Verification succeeded for registry.example/image@sha256:digest",
+		"  - The Sigstore bundle was verified",
+		"  - A trusted RFC 3161 timestamp was verified",
+		"  - The code-signing certificate chain was verified against the configured trusted root",
+	} {
+		if !strings.Contains(stderr, expected) {
+			t.Fatalf("expected output to contain %q, got %q", expected, stderr)
+		}
+	}
+	if strings.Contains(stderr, "Transparency log inclusion was verified") {
+		t.Fatalf("did not expect transparency-log verification claim, got %q", stderr)
+	}
+}
+
+func TestPrintVerificationHeaderBundleWithTransparencyLog(t *testing.T) {
+	co := &cosign.CheckOpts{}
+
+	stderr := ui.RunWithTestCtx(func(ctx context.Context, _ ui.WriteFunc) {
+		PrintVerificationHeader(ctx, "registry.example/image@sha256:digest", co, true, true)
+	})
+
+	if !strings.Contains(stderr, "  - Transparency log inclusion was verified offline") {
+		t.Fatalf("expected transparency-log verification claim, got %q", stderr)
+	}
+	if strings.Contains(stderr, "RFC 3161") {
+		t.Fatalf("did not expect signed-timestamp verification claim, got %q", stderr)
+	}
+}
+
 func setBrokenTrustedRootTUFEnv(t *testing.T) {
 	t.Helper()
 	t.Setenv(env.VariableTUFRootDir.String(), t.TempDir())

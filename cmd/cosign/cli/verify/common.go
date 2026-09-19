@@ -208,17 +208,23 @@ func SetTrustedMaterial(ctx context.Context, trustedRootPath, certChain, caRoots
 
 // PrintVerificationHeader prints boilerplate information after successful verification.
 func PrintVerificationHeader(ctx context.Context, imgRef string, co *cosign.CheckOpts, bundleVerified, fulcioVerified bool) {
-	ui.Infof(ctx, "\nVerification for %s --", imgRef)
-	ui.Infof(ctx, "The following checks were performed on each of these signatures:")
+	ui.Infof(ctx, "\nVerification succeeded for %s", imgRef)
+	ui.Infof(ctx, "Checks performed:")
 	if co.ClaimVerifier != nil {
 		if co.Annotations != nil {
-			ui.Infof(ctx, "  - The specified annotations were verified.")
+			ui.Infof(ctx, "  - The specified annotations were verified")
 		}
 		ui.Infof(ctx, "  - The cosign claims were validated")
 	}
 	if bundleVerified {
-		ui.Infof(ctx, "  - Existence of the claims in the transparency log was verified offline")
-	} else if co.RekorClient != nil {
+		ui.Infof(ctx, "  - The Sigstore bundle was verified")
+	}
+	if co.UseSignedTimestamps {
+		ui.Infof(ctx, "  - A trusted RFC 3161 timestamp was verified")
+	}
+	if bundleVerified && !co.IgnoreTlog {
+		ui.Infof(ctx, "  - Transparency log inclusion was verified offline")
+	} else if !co.IgnoreTlog && co.RekorClient != nil {
 		ui.Infof(ctx, "  - The claims were present in the transparency log")
 		ui.Infof(ctx, "  - The signatures were integrated into the transparency log when the certificate was valid")
 	}
@@ -226,7 +232,11 @@ func PrintVerificationHeader(ctx context.Context, imgRef string, co *cosign.Chec
 		ui.Infof(ctx, "  - The signatures were verified against the specified public key")
 	}
 	if fulcioVerified {
-		ui.Infof(ctx, "  - The code-signing certificate was verified using trusted certificate authority certificates")
+		if co.CertificateChainOnly {
+			ui.Infof(ctx, "  - The code-signing certificate chain was verified against the configured trusted root")
+		} else {
+			ui.Infof(ctx, "  - The code-signing certificate was verified using trusted certificate authority certificates")
+		}
 	}
 }
 

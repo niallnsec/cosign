@@ -260,9 +260,7 @@ func signerFromSecurityKey(ctx context.Context, certPath, certChainPath, keySlot
 			sk.Close()
 			return nil, fmt.Errorf("marshaling certificate to PEM: %w", err)
 		}
-		if certSigner.Cert != nil {
-			ui.Warnf(ctx, "overriding x509 certificate retrieved from the PIV token")
-		}
+		ui.Infof(ctx, "Using the operator-supplied certificate for PIV signing; its public key matches the selected token key")
 		leafCert = parsedCert
 		certSigner.Cert = pemBytes
 	}
@@ -386,9 +384,7 @@ func signerFromKeyRef(ctx context.Context, certPath, certChainPath, keyRef strin
 		if err != nil {
 			return nil, fmt.Errorf("marshaling certificate to PEM: %w", err)
 		}
-		if certSigner.Cert != nil {
-			ui.Warnf(ctx, "overriding x509 certificate retrieved from the PKCS11 token")
-		}
+		ui.Infof(ctx, "Using the operator-supplied certificate for PKCS11 signing; its public key matches the selected token key")
 		leafCert = parsedCert
 		certSigner.Cert = pemBytes
 	}
